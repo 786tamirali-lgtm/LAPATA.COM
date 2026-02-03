@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAPATA PORTAL - तामीर अली</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage-compat.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #1a237e; --success: #2e7d32; --danger: #d32f2f; }
+        body { font-family: 'Poppins', 'Noto Sans Devanagari', sans-serif; background: #f0f2f5; margin: 0; padding-bottom: 50px; }
+        .header { background: linear-gradient(135deg, var(--primary), #000); color: white; padding: 30px; text-align: center; cursor: pointer; }
+        .container { max-width: 600px; margin: -30px auto 20px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 25px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: var(--primary); }
+        input, select { width: 100%; padding: 14px; border: 2px solid #e0e0e0; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
+        .btn { padding: 16px; border-radius: 10px; border: none; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; transition: 0.3s; margin-top: 10px; }
+        .btn-success { background: var(--success); color: white; }
+        .status-card { margin-top: 20px; padding: 15px; border-radius: 10px; text-align: center; display: none; }
+        .person-card { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 10px; display: flex; align-items: center; gap: 15px; }
+        .person-img { width: 70px; height: 70px; border-radius: 10px; object-fit: cover; border: 2px solid #ddd; }
+        #admin-panel { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="header" id="adminTrigger">
+    <h1>LAPATA PORTAL</h1>
+    <p>786 तामीर अली - महासंग्रह: अक्ल की जीत</p>
+</div>
+
+<div class="container" id="reg-view">
+    <h2 style="color: var(--primary); text-align: center;">नया पंजीकरण</h2>
+    <div class="form-group">
+        <label>पूरा नाम / Full Name *</label>
+        <input type="text" id="p-name" placeholder="नाम लिखें">
+    </div>
+    <div class="form-group">
+        <label>उम्र / Age *</label>
+        <input type="number" id="p-age" placeholder="उम्र लिखें">
+    </div>
+    <div class="form-group">
+        <label>गैलरी से फोटो चुनें / Select Photo *</label>
+        <input type="file" id="p-photo" accept="image/*">
+    </div>
+    <button class="btn btn-success" onclick="uploadAndSave()">क्लाउड में सुरक्षित करें</button>
+    <div id="status-msg" class="status-card"></div>
+</div>
+
+<div class="container" id="admin-panel">
+    <h2 style="color: var(--danger);">तामीर अली एडमिन पैनल (डेटा लिस्ट)</h2>
+    <div id="data-list">डेटा लोड हो रहा है...</div>
+    <button class="btn" style="background:#666; color:white;" onclick="location.reload()">वापस जाएं</button>
+</div>
+
+<script>
+    // तामीर अली जी, यहाँ आपका 'Social Market' का पूरा कॉन्फ़िगरेशन है
+    const firebaseConfig = {
+      apiKey: "AIzaSyCrENB-Jn0-2llx_5hIuAFLQow0FJe_rtg",
+      authDomain: "social-market-f5215.firebaseapp.com",
+      databaseURL: "https://social-market-f5215-default-rtdb.firebaseio.com",
+      projectId: "social-market-f5215",
+      storageBucket: "social-market-f5215.firebasestorage.app",
+      messagingSenderId: "584871001386",
+      appId: "1:584871001386:web:16defb39b8498962653253"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const storage = firebase.storage();
+
+    // एडमिन एक्सेस (786) के लिए हेडर पर 5 बार क्लिक करें [cite: 2026-01-27]
+    let clicks = 0;
+    document.getElementById('adminTrigger').onclick = function() {
+        clicks++;
+        if (clicks === 5) {
+            let code = prompt("तामीर अली जी, गुप्त कोड (Master Code) दर्ज करें:");
+            if (code === "786") {
+                document.getElementById('reg-view').style.display = "none";
+                document.getElementById('admin-panel').style.display = "block";
+                loadAdminData();
+            }
+            clicks = 0;
+        }
+    };
+
+    async function uploadAndSave() {
+        const name = document.getElementById('p-name').value;
+        const age = document.getElementById('p-age').value;
+        const file = document.getElementById('p-photo').files[0];
+        const statusBox = document.getElementById('status-msg');
+
+        if (!name || !age || !file) {
+            alert("कृपया नाम, उम्र और फोटो तीनों चुनें!");
+            return;
+        }
+
+        statusBox.style.display = "block";
+        statusBox.style.background = "#e3f2fd";
+        statusBox.innerText = "महासंग्रह क्लाउड में फोटो भेजी जा रही है...";
+
+        try {
+            // 1. फोटो स्टोरेज में अपलोड करना
+            const storageRef = storage.ref('missing_persons/' + Date.now() + "_" + file.name);
+            const snapshot = await storageRef.put(file);
+            const photoUrl = await snapshot.ref.getDownloadURL();
+
+            // 2. डेटाबेस में जानकारी सेव करना
+            const personId = 'LPT' + Date.now().toString().slice(-4);
+            await db.ref('persons/' + personId).set({
+                id: personId, name, age, photoUrl, status: 'missing', date: new Date().toLocaleDateString()
+            });
+
+            statusBox.style.background = "#c8e6c9";
+            statusBox.innerText = "✅ मुबारक हो! जानकारी फोटो सहित सुरक्षित हो गई।";
+            document.getElementById('p-name').value = "";
+            document.getElementById('p-age').value = "";
+            document.getElementById('p-photo').value = "";
+        } catch (error) {
+            statusBox.style.background = "#ffcdd2";
+            statusBox.innerText = "❌ गड़बड़: " + error.message;
+        }
+    }
+
+    function loadAdminData() {
+        db.ref('persons/').on('value', (snap) => {
+            const data = snap.val();
+            const listDiv = document.getElementById('data-list');
+            if (!data) { listDiv.innerText = "कोई डेटा नहीं मिला।"; return; }
+            
+            listDiv.innerHTML = Object.values(data).map(p => `
+                <div class="person-card">
+                    <img src="${p.photoUrl}" class="person-img" alt="photo">
+                    <div>
+                        <strong>${p.name}</strong> (${p.age} वर्ष)<br>
+                        <small>ID: ${p.id} | तारीख: ${p.date}</small>
+                    </div>
+                </div>
+            `).join('');
+        });
+    }
+</script>
+</body>
+</html>
